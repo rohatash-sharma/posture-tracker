@@ -2,12 +2,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
-ASSETS_DIR = ROOT / "assets"
-SESSIONS_DIR = ROOT / "sessions"
+STORAGE_DIR = ROOT / "storage"
+MODEL_DIR = STORAGE_DIR / "models"
+SESSIONS_DIR = STORAGE_DIR / "sessions"
 
-MODEL_PATH = ASSETS_DIR / "pose_landmarker_lite.task"
+MODEL_PATH = MODEL_DIR / "pose_landmarker_lite.task"
 
 MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/"
@@ -19,29 +20,35 @@ MODEL_URL = (
 @dataclass(frozen=True)
 class ExerciseThresholds:
     """
-    Thresholds used by the exercise rules.
-
-    The original project specification proposes:
-    - Squat: knee around/below 90 degrees for the down state
-    - Push-up: elbow around 90 degrees for the down state
-    - Push-up: body line close to 180 degrees
-    - Deadlift: neutral back and hip/knee extension
+    Tunable angle and visibility limits used by the pose heuristics.
     """
 
     # Squat
     squat_down_knee: float = 100.0
     squat_up_knee: float = 165.0
-    squat_back_min: float = 155.0
+    squat_max_torso_tilt: float = 45.0
 
     # Push-up
     pushup_down_elbow: float = 110.0
     pushup_up_elbow: float = 160.0
     pushup_body_min: float = 165.0
 
+    # Lunge
+    lunge_down_knee: float = 105.0
+    lunge_up_knee: float = 160.0
+    lunge_max_torso_tilt: float = 45.0
+
+    # Bicep curl
+    curl_down_elbow: float = 75.0
+    curl_up_elbow: float = 155.0
+    curl_max_upper_arm_tilt: float = 40.0
+
+    # Plank
+    plank_body_min: float = 160.0
+
     # Deadlift
-    deadlift_down_knee: float = 145.0
+    deadlift_down_hip: float = 120.0
     deadlift_lockout_hip: float = 165.0
-    deadlift_back_min: float = 160.0
 
     # General
     min_visibility: float = 0.55

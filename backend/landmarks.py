@@ -104,6 +104,7 @@ class PoseLandmarks:
     def __init__(
         self,
         points: list[Point],
+        world_points: list[Point] | None = None,
     ):
 
         if len(points) != 33:
@@ -112,19 +113,35 @@ class PoseLandmarks:
                 f"landmarks, got {len(points)}"
             )
 
+        if world_points is not None and len(world_points) != 33:
+            raise ValueError(
+                "Expected exactly 33 world "
+                f"landmarks, got {len(world_points)}"
+            )
+
         self.points = points
+        self.world_points = world_points
 
     @classmethod
     def from_mediapipe(
         cls,
         points,
+        world_points=None,
     ):
 
         return cls(
             [
                 Point.from_mp(point)
                 for point in points
-            ]
+            ],
+            (
+                [
+                    Point.from_mp(point)
+                    for point in world_points
+                ]
+                if world_points is not None
+                else None
+            ),
         )
 
     def __getitem__(
@@ -135,6 +152,14 @@ class PoseLandmarks:
         return self.points[
             int(landmark)
         ]
+
+    def geometry_point(
+        self,
+        landmark: Landmark | int,
+    ) -> Point:
+        if self.world_points is not None:
+            return self.world_points[int(landmark)]
+        return self[landmark]
 
     def visible(
         self,

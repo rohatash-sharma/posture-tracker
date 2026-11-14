@@ -1,0 +1,1 @@
+"""Individual Streamlit application pages."""

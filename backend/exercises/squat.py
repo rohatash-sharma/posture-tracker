@@ -6,7 +6,7 @@ from ..feedback import (
     score_from_conditions,
 )
 
-from ..geometry import angle_3d
+from ..geometry import angle_from_vertical
 
 from ..landmarks import PoseLandmarks
 
@@ -17,7 +17,7 @@ from ..state_machine import (
     StateMachine,
 )
 
-from config.settings import THRESHOLDS
+from backend.config.settings import THRESHOLDS
 
 from .base import Analysis
 
@@ -28,9 +28,9 @@ from .common import (
 )
 
 
-class DeadliftAnalyzer:
+class SquatAnalyzer:
 
-    name = "Deadlift"
+    name = "Squat"
 
     def __init__(self):
 
@@ -54,7 +54,7 @@ class DeadliftAnalyzer:
         pose: PoseLandmarks,
     ) -> Analysis:
 
-        side = best_side(pose)
+        side = best_side(pose, (0, 3, 4, 5))
 
         (
             shoulder,
@@ -83,7 +83,7 @@ class DeadliftAnalyzer:
                 feedback=[
                     Feedback(
                         FeedbackLevel.INFO,
-                        "Use a clear side view with shoulder, hip, knee and ankle visible.",
+                        "Move so your full body is visible.",
                         0.0,
                     )
                 ],
@@ -95,35 +95,31 @@ class DeadliftAnalyzer:
             "knee",
         )
 
-        hip_angle = limb_angle(
-            pose,
-            side,
-            "hip",
+        torso_tilt = angle_from_vertical(
+            pose.geometry_point(shoulder),
+            pose.geometry_point(hip),
         )
 
-        back_angle = angle_3d(
-            pose[shoulder],
-            pose[hip],
-            pose[knee],
-        )
-
-        lockout = (
-            hip_angle
-            >= THRESHOLDS.deadlift_lockout_hip
-            and knee_angle
-            >= THRESHOLDS.deadlift_lockout_hip
-        )
-
-        lowered = (
+        is_down = (
             knee_angle
-            <= THRESHOLDS.deadlift_down_knee
+            <= THRESHOLDS.squat_down_knee
+        )
+
+        is_up = (
+            knee_angle
+            >= THRESHOLDS.squat_up_knee
+        )
+
+        torso_ok = (
+            torso_tilt
+            <= THRESHOLDS.squat_max_torso_tilt
         )
 
         candidate = (
-            Phase.UP
-            if lockout
-            else Phase.DOWN
-            if lowered
+            Phase.DOWN
+            if is_down
+            else Phase.UP
+            if is_up
             else Phase.TRANSITION
         )
 
@@ -133,46 +129,58 @@ class DeadliftAnalyzer:
             )
         )
 
-        back_ok = (
-            back_angle
-            >= THRESHOLDS.deadlift_back_min
-        )
+        valid = torso_ok
 
-        valid = back_ok
-
+        metrics = {
+            "knee_angle": knee_angle,
+            "torso_tilt": torso_tilt,
+        }
         self.counter.update(
             phase,
             valid,
+            metrics,
         )
 
-        if not back_ok:
+        if not torso_ok:
 
             feedback = Feedback(
                 FeedbackLevel.BAD,
-                "Avoid rounding your back.",
+                "Reduce forward torso lean.",
                 40.0,
             )
 
-        elif phase == Phase.UP:
+        elif candidate == Phase.DOWN:
 
             feedback = Feedback(
                 FeedbackLevel.GOOD,
-                "Strong lockout. Keep the back neutral.",
+                "Good depth; drive up with control.",
                 100.0,
+            )
+
+        elif (
+            candidate == Phase.TRANSITION
+            and knee_angle
+            <= THRESHOLDS.squat_down_knee + 15
+        ):
+
+            feedback = Feedback(
+                FeedbackLevel.WARNING,
+                "Go a little deeper.",
+                70.0,
             )
 
         else:
 
             feedback = Feedback(
-                FeedbackLevel.GOOD,
-                "Control the hinge.",
-                100.0,
+                FeedbackLevel.INFO,
+                "Move through a controlled range.",
+                85.0,
             )
 
         score = score_from_conditions(
             [
-                back_ok,
-                lockout or lowered,
+                torso_ok,
+                is_down or is_up,
             ]
         )
 
@@ -183,10 +191,7 @@ class DeadliftAnalyzer:
             valid_form=valid,
             score=score,
             reps=self.counter.count,
-            metrics={
-                "knee_angle": knee_angle,
-                "hip_angle": hip_angle,
-                "back_angle": back_angle,
-            },
+            metrics=metrics,
+            rep_metrics=self.counter.completed_metrics or {},
             feedback=[feedback],
         )

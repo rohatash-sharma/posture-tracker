@@ -1,6 +1,6 @@
 import math
 
-from core.geometry import angle_3d
+from backend.geometry import angle_3d
 
 
 def test_right_angle():

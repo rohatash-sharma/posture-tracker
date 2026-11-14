@@ -40,7 +40,7 @@ def side_landmarks(
 
 def best_side(
     pose: PoseLandmarks,
-    threshold: float = 0.55,
+    required_landmarks: tuple[int, ...],
 ) -> str:
 
     scores = {}
@@ -51,10 +51,9 @@ def best_side(
             side
         )
 
-        scores[side] = (
-            pose.visibility_mean(
-                *landmarks
-            )
+        scores[side] = min(
+            pose[landmarks[index]].visibility
+            for index in required_landmarks
         )
 
     return max(
@@ -81,25 +80,25 @@ def limb_angle(
     if joint == "elbow":
 
         return angle_3d(
-            pose[shoulder],
-            pose[elbow],
-            pose[wrist],
+            pose.geometry_point(shoulder),
+            pose.geometry_point(elbow),
+            pose.geometry_point(wrist),
         )
 
     if joint == "knee":
 
         return angle_3d(
-            pose[hip],
-            pose[knee],
-            pose[ankle],
+            pose.geometry_point(hip),
+            pose.geometry_point(knee),
+            pose.geometry_point(ankle),
         )
 
     if joint == "hip":
 
         return angle_3d(
-            pose[shoulder],
-            pose[hip],
-            pose[knee],
+            pose.geometry_point(shoulder),
+            pose.geometry_point(hip),
+            pose.geometry_point(knee),
         )
 
     raise ValueError(

@@ -17,7 +17,7 @@ from ..state_machine import (
     StateMachine,
 )
 
-from config.settings import THRESHOLDS
+from backend.config.settings import THRESHOLDS
 
 from .base import Analysis
 
@@ -28,9 +28,9 @@ from .common import (
 )
 
 
-class SquatAnalyzer:
+class PushUpAnalyzer:
 
-    name = "Squat"
+    name = "Push-Up"
 
     def __init__(self):
 
@@ -54,21 +54,22 @@ class SquatAnalyzer:
         pose: PoseLandmarks,
     ) -> Analysis:
 
-        side = best_side(pose)
+        side = best_side(pose, (0, 1, 2, 3, 5))
 
         (
             shoulder,
-            _,
-            _,
+            elbow,
+            wrist,
             hip,
-            knee,
+            _,
             ankle,
         ) = side_landmarks(side)
 
         required = (
             shoulder,
+            elbow,
+            wrist,
             hip,
-            knee,
             ankle,
         )
 
@@ -83,37 +84,37 @@ class SquatAnalyzer:
                 feedback=[
                     Feedback(
                         FeedbackLevel.INFO,
-                        "Move so your full body is visible.",
+                        "Use a side view and keep shoulder, hip and ankle visible.",
                         0.0,
                     )
                 ],
             )
 
-        knee_angle = limb_angle(
+        elbow_angle = limb_angle(
             pose,
             side,
-            "knee",
+            "elbow",
         )
 
-        back_angle = angle_3d(
-            pose[shoulder],
-            pose[hip],
-            pose[knee],
+        body_angle = angle_3d(
+            pose.geometry_point(shoulder),
+            pose.geometry_point(hip),
+            pose.geometry_point(ankle),
         )
 
         is_down = (
-            knee_angle
-            <= THRESHOLDS.squat_down_knee
+            elbow_angle
+            <= THRESHOLDS.pushup_down_elbow
         )
 
         is_up = (
-            knee_angle
-            >= THRESHOLDS.squat_up_knee
+            elbow_angle
+            >= THRESHOLDS.pushup_up_elbow
         )
 
-        back_ok = (
-            back_angle
-            >= THRESHOLDS.squat_back_min
+        body_straight = (
+            body_angle
+            >= THRESHOLDS.pushup_body_min
         )
 
         candidate = (
@@ -130,30 +131,43 @@ class SquatAnalyzer:
             )
         )
 
-        valid = back_ok
+        valid = body_straight
 
+        metrics = {
+            "elbow_angle": elbow_angle,
+            "body_angle": body_angle,
+        }
         self.counter.update(
             phase,
             valid,
+            metrics,
         )
 
-        if not back_ok:
+        if not body_straight:
 
             feedback = Feedback(
                 FeedbackLevel.BAD,
-                "Keep your back more upright.",
+                "Keep your body in a straighter line.",
                 40.0,
             )
 
+        elif candidate == Phase.DOWN:
+
+            feedback = Feedback(
+                FeedbackLevel.GOOD,
+                "Good depth; press back up.",
+                100.0,
+            )
+
         elif (
-            phase == Phase.DOWN
-            and knee_angle
-            > THRESHOLDS.squat_down_knee
+            candidate == Phase.TRANSITION
+            and elbow_angle
+            <= THRESHOLDS.pushup_down_elbow + 15
         ):
 
             feedback = Feedback(
                 FeedbackLevel.WARNING,
-                "Go a little deeper.",
+                "Lower a little more.",
                 70.0,
             )
 
@@ -161,13 +175,13 @@ class SquatAnalyzer:
 
             feedback = Feedback(
                 FeedbackLevel.GOOD,
-                "Good squat form.",
-                100.0,
+                "Move through a controlled range.",
+                85.0,
             )
 
         score = score_from_conditions(
             [
-                back_ok,
+                body_straight,
                 is_down or is_up,
             ]
         )
@@ -179,9 +193,7 @@ class SquatAnalyzer:
             valid_form=valid,
             score=score,
             reps=self.counter.count,
-            metrics={
-                "knee_angle": knee_angle,
-                "back_angle": back_angle,
-            },
+            metrics=metrics,
+            rep_metrics=self.counter.completed_metrics or {},
             feedback=[feedback],
         )

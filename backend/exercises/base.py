@@ -19,8 +19,13 @@ class Analysis:
     score: float = 0.0
 
     reps: int = 0
+    hold_seconds: float = 0.0
 
     metrics: dict[str, float] = field(
+        default_factory=dict
+    )
+
+    rep_metrics: dict[str, tuple[float, float]] = field(
         default_factory=dict
     )
 

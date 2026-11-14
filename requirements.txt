@@ -1,9 +1,13 @@
 streamlit>=1.56,<2
 streamlit-webrtc>=0.63,<1
 mediapipe>=0.10.30,<0.11
-opencv-python-headless>=4.10,<5
+# MediaPipe depends on opencv-contrib-python (a superset of the
+# headless build, including all headless-safe APIs). Pinning it to
+# the <5 range keeps a SINGLE cv2 provider installed, avoiding the
+# file-level conflict between opencv-contrib-python and
+# opencv-python-headless that both ship the `cv2` package.
+opencv-contrib-python>=4.10,<5
 numpy>=1.26,<3
 pandas>=2.2,<3
 av>=15.1,<18
 scipy>=1.13,<2
-pytest>=8,<9

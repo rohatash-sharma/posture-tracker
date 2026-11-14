@@ -1,12 +1,18 @@
+from .bicep_curl import BicepCurlAnalyzer
 from .deadlift import DeadliftAnalyzer
+from .lunge import LungeAnalyzer
+from .plank import PlankAnalyzer
 from .pushup import PushUpAnalyzer
 from .squat import SquatAnalyzer
 
 
 EXERCISES = {
+    "Bicep Curl": BicepCurlAnalyzer,
     "Squat": SquatAnalyzer,
     "Push-Up": PushUpAnalyzer,
     "Deadlift": DeadliftAnalyzer,
+    "Lunge": LungeAnalyzer,
+    "Plank": PlankAnalyzer,
 }
 
 

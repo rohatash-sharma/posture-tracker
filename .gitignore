@@ -13,7 +13,6 @@ env/
 
 .streamlit/secrets.toml
 
-assets/*.task
-
-sessions/*.csv
-sessions/*.json
+storage/models/*.task
+storage/sessions/*
+!storage/sessions/.gitkeep

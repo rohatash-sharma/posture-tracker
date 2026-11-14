@@ -6,8 +6,6 @@ from ..feedback import (
     score_from_conditions,
 )
 
-from ..geometry import angle_3d
-
 from ..landmarks import PoseLandmarks
 
 from ..rep_counter import RepCounter
@@ -17,7 +15,7 @@ from ..state_machine import (
     StateMachine,
 )
 
-from config.settings import THRESHOLDS
+from backend.config.settings import THRESHOLDS
 
 from .base import Analysis
 
@@ -28,9 +26,9 @@ from .common import (
 )
 
 
-class PushUpAnalyzer:
+class DeadliftAnalyzer:
 
-    name = "Push-Up"
+    name = "Deadlift"
 
     def __init__(self):
 
@@ -54,12 +52,12 @@ class PushUpAnalyzer:
         pose: PoseLandmarks,
     ) -> Analysis:
 
-        side = best_side(pose)
+        side = best_side(pose, (0, 3, 4, 5))
 
         (
             shoulder,
-            elbow,
-            wrist,
+            _,
+            _,
             hip,
             knee,
             ankle,
@@ -67,9 +65,8 @@ class PushUpAnalyzer:
 
         required = (
             shoulder,
-            elbow,
-            wrist,
             hip,
+            knee,
             ankle,
         )
 
@@ -84,44 +81,41 @@ class PushUpAnalyzer:
                 feedback=[
                     Feedback(
                         FeedbackLevel.INFO,
-                        "Use a side view and keep shoulder, hip and ankle visible.",
+                        "Use a clear side view with shoulder, hip, knee and ankle visible.",
                         0.0,
                     )
                 ],
             )
 
-        elbow_angle = limb_angle(
+        knee_angle = limb_angle(
             pose,
             side,
-            "elbow",
+            "knee",
         )
 
-        body_angle = angle_3d(
-            pose[shoulder],
-            pose[hip],
-            pose[ankle],
+        hip_angle = limb_angle(
+            pose,
+            side,
+            "hip",
         )
 
-        is_down = (
-            elbow_angle
-            <= THRESHOLDS.pushup_down_elbow
+        lockout = (
+            hip_angle
+            >= THRESHOLDS.deadlift_lockout_hip
+            and knee_angle
+            >= THRESHOLDS.deadlift_lockout_hip
         )
 
-        is_up = (
-            elbow_angle
-            >= THRESHOLDS.pushup_up_elbow
-        )
-
-        body_straight = (
-            body_angle
-            >= THRESHOLDS.pushup_body_min
+        lowered = (
+            hip_angle
+            <= THRESHOLDS.deadlift_down_hip
         )
 
         candidate = (
-            Phase.DOWN
-            if is_down
-            else Phase.UP
-            if is_up
+            Phase.UP
+            if lockout
+            else Phase.DOWN
+            if lowered
             else Phase.TRANSITION
         )
 
@@ -131,45 +125,46 @@ class PushUpAnalyzer:
             )
         )
 
-        valid = body_straight
+        valid = lockout or lowered
 
+        metrics = {
+            "knee_angle": knee_angle,
+            "hip_angle": hip_angle,
+        }
         self.counter.update(
             phase,
             valid,
+            metrics,
         )
 
-        if not body_straight:
+        if candidate == Phase.UP:
 
             feedback = Feedback(
-                FeedbackLevel.BAD,
-                "Keep your body in a straighter line.",
-                40.0,
+                FeedbackLevel.GOOD,
+                "Stand tall to finish the rep.",
+                100.0,
             )
 
-        elif (
-            phase == Phase.DOWN
-            and elbow_angle
-            > THRESHOLDS.pushup_down_elbow
-        ):
+        elif candidate == Phase.DOWN:
 
             feedback = Feedback(
-                FeedbackLevel.WARNING,
-                "Lower a little more.",
-                70.0,
+                FeedbackLevel.INFO,
+                "Hinge reached; maintain a neutral spine.",
+                100.0,
             )
 
         else:
 
             feedback = Feedback(
-                FeedbackLevel.GOOD,
-                "Good push-up form.",
-                100.0,
+                FeedbackLevel.INFO,
+                "Hinge with control; spinal rounding is not measured.",
+                70.0,
             )
 
         score = score_from_conditions(
             [
-                body_straight,
-                is_down or is_up,
+                lockout or lowered,
+                phase in (Phase.UP, Phase.DOWN),
             ]
         )
 
@@ -180,9 +175,7 @@ class PushUpAnalyzer:
             valid_form=valid,
             score=score,
             reps=self.counter.count,
-            metrics={
-                "elbow_angle": elbow_angle,
-                "body_angle": body_angle,
-            },
+            metrics=metrics,
+            rep_metrics=self.counter.completed_metrics or {},
             feedback=[feedback],
         )

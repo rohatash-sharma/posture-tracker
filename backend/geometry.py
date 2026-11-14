@@ -97,6 +97,17 @@ def line_angle(a, b) -> float:
     )
 
 
+def angle_from_vertical(a, b) -> float:
+    """Return the smaller 3D angle between segment AB and vertical."""
+    vector = as_xyz(a) - as_xyz(b)
+    length = float(np.linalg.norm(vector))
+    if length < 1e-9:
+        return float("nan")
+
+    cosine = abs(float(vector[1])) / length
+    return math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+
+
 def midpoint(a, b) -> np.ndarray:
     return (
         as_xyz(a)
