@@ -53,6 +53,15 @@ def test_analyze_video_returns_browser_playable_mp4(
     assert summary.frames == 3
     assert summary.duration_seconds == pytest.approx(0.3)
     assert progress[-1] == (3, 3)
+    assert summary.correction_timeline == [
+        {
+            "time_seconds": 0.0,
+            "frame": 1,
+            "level": "info",
+            "message": "No person detected. Position yourself fully in the camera frame.",
+            "score": 0.0,
+        }
+    ]
     assert output_path.is_file()
     with av.open(str(output_path)) as container:
         stream = container.streams.video[0]

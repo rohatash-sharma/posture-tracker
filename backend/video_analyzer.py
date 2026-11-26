@@ -30,6 +30,9 @@ class VideoSummary:
     metric_ranges: dict[str, tuple[float, float]] = field(
         default_factory=dict
     )
+    correction_timeline: list[dict[str, object]] = field(
+        default_factory=list
+    )
 
 
 def analyze_video(
@@ -78,6 +81,8 @@ def analyze_video(
 
         scores: list[float] = []
         metric_values: dict[str, list[float]] = {}
+        correction_timeline: list[dict[str, object]] = []
+        last_correction: tuple[str, str] | None = None
         valid_frames = 0
         frames = 0
         hold_seconds = 0.0
@@ -117,10 +122,24 @@ def analyze_video(
                     frame,
                     timestamp_ms=round((frames - 1) * 1000 / fps),
                 )
+                timestamp_seconds = (frames - 1) / fps
                 if pose is None:
                     if isinstance(analyzer, PlankAnalyzer):
                         analyzer.reset()
                         hold_seconds = 0.0
+                    correction = (
+                        "info",
+                        "No person detected. Position yourself fully in the camera frame.",
+                    )
+                    if correction != last_correction:
+                        correction_timeline.append({
+                            "time_seconds": round(timestamp_seconds, 2),
+                            "frame": frames,
+                            "level": correction[0],
+                            "message": correction[1],
+                            "score": 0.0,
+                        })
+                        last_correction = correction
                 else:
                     if isinstance(analyzer, PlankAnalyzer):
                         analysis = analyzer.process(
@@ -137,6 +156,21 @@ def analyze_video(
                             metric_values.setdefault(name, []).append(value)
                     if analysis.valid_form:
                         valid_frames += 1
+                    if analysis.feedback:
+                        feedback = analysis.feedback[0]
+                        correction = (
+                            feedback.level.value,
+                            feedback.message,
+                        )
+                        if correction != last_correction:
+                            correction_timeline.append({
+                                "time_seconds": round(timestamp_seconds, 2),
+                                "frame": frames,
+                                "level": correction[0],
+                                "message": correction[1],
+                                "score": feedback.score,
+                            })
+                            last_correction = correction
                     draw_pose(frame, pose)
                     draw_dashboard(frame, analysis)
 
@@ -195,4 +229,5 @@ def analyze_video(
             for name, values in metric_values.items()
             if values
         },
+        correction_timeline=correction_timeline,
     )

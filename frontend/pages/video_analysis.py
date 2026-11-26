@@ -140,6 +140,27 @@ def _render_saved_result(audio_enabled: bool) -> None:
         st.write(angle_ranges)
 
     slug = result_exercise.lower().replace(" ", "_")
+    st.subheader("Corrections Throughout the Video")
+    if summary.correction_timeline:
+        report_text = _format_correction_report(
+            result_exercise,
+            summary,
+        )
+        st.text_area(
+            "Text response",
+            value=report_text,
+            height=220,
+            disabled=True,
+        )
+        st.download_button(
+            "Download Corrections Text",
+            report_text,
+            file_name=f"{slug}_corrections.txt",
+            mime="text/plain",
+        )
+    else:
+        st.info("No correction cues were detected in the processed frames.")
+
     with output_path.open("rb") as video_file:
         st.download_button(
             "Download Annotated Video",
@@ -148,6 +169,36 @@ def _render_saved_result(audio_enabled: bool) -> None:
             mime="video/mp4",
             on_click="ignore",
         )
+
+
+def _format_correction_report(
+    exercise: str,
+    summary: VideoSummary,
+) -> str:
+    lines = [
+        f"{exercise} Offline Analysis Report",
+        f"Duration: {summary.duration_seconds:.1f} seconds",
+        f"Average form score: {summary.average_score:.0f}%",
+    ]
+    if exercise == "Plank":
+        lines.append(f"Hold time: {summary.hold_seconds:.1f} seconds")
+    else:
+        lines.append(f"Repetitions: {summary.reps}")
+    lines.append("\nCorrections throughout the video:")
+
+    for correction in summary.correction_timeline:
+        minutes, seconds = divmod(
+            float(correction["time_seconds"]),
+            60,
+        )
+        timestamp = f"{int(minutes):02d}:{seconds:05.2f}"
+        level = str(correction["level"]).upper()
+        lines.append(
+            f"- [{timestamp}] {level}: {correction['message']} "
+            f"(frame {correction['frame']}, score {float(correction['score']):.0f}%)"
+        )
+
+    return "\n".join(lines)
 
 
 def _render_video_voice(
@@ -164,10 +215,12 @@ def _render_video_voice(
         if exercise == "Plank"
         else f"{summary.reps} repetitions"
     )
+    correction_count = len(summary.correction_timeline)
     spoken_summary = (
         f"{exercise} analysis complete. {activity}. "
         f"Average form score {summary.average_score:.0f} percent. "
-        f"Duration {summary.duration_seconds:.1f} seconds."
+        f"Duration {summary.duration_seconds:.1f} seconds. "
+        f"{correction_count} correction cues were recorded throughout the video."
     )
     components.html(
         f"""
